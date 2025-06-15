@@ -1,0 +1,78 @@
+import streamlit as st
+import requests
+
+API_BASE_URL = "http://localhost:8000"
+
+# === API Functions ===
+def fetch_users():
+    res = requests.get(f"{API_BASE_URL}/users")
+    return res.json() if res.ok else []
+
+def fetch_tasks():
+    res = requests.get(f"{API_BASE_URL}/tasks")
+    return res.json() if res.ok else []
+
+def create_task(title, owner_id, status):
+    payload = {"title": title, "owner_id": owner_id, "status": status}
+    return requests.post(f"{API_BASE_URL}/tasks", json=payload).ok
+
+def update_task(task_id, owner_id, status):
+    payload = {"owner_id": owner_id, "status": status}
+    return requests.put(f"{API_BASE_URL}/tasks/{task_id}", json=payload).ok
+
+def delete_task(task_id):
+    return requests.delete(f"{API_BASE_URL}/tasks/{task_id}").ok
+
+# === UI Starts ===
+st.title("📋 FastAPI Task Manager")
+
+# Load users for dropdowns
+users = fetch_users()
+user_id_name_map = {user["name"]: user["id"] for user in users}
+user_name_id_map = {user["id"]: user["name"] for user in users}
+user_names = list(user_id_name_map.keys())
+
+# === Create Task Section ===
+st.subheader("➕ Create Task")
+with st.form("create_task_form"):
+    title = st.text_input("Title")
+    selected_user_name = st.selectbox("Select Owner", user_names)
+    status = st.selectbox("Status", ["Pending", "In Progress", "Completed"])
+    create_submit = st.form_submit_button("Create Task")
+    if create_submit:
+        owner_id = user_id_name_map[selected_user_name]
+        if create_task(title, owner_id, status):
+            st.success("✅ Task created!")
+        else:
+            st.error("❌ Failed to create task.")
+
+# === Manage Tasks Section ===
+st.subheader("🛠️ Update / Delete Task")
+tasks = fetch_tasks()
+if tasks:
+    task_map = {f"{task['id']}: {task['title']}": task for task in tasks}
+    selected_task_label = st.selectbox("Select Task", list(task_map.keys()))
+    selected_task = task_map[selected_task_label]
+
+    current_owner_name = user_name_id_map.get(selected_task["owner_id"], "Unknown")
+    st.write(f"**Current Owner**: {current_owner_name}")
+    st.write(f"**Current Status**: {selected_task['status']}")
+
+    with st.form("update_task_form"):
+        new_owner_name = st.selectbox("Change Owner", user_names, index=user_names.index(current_owner_name) if current_owner_name in user_names else 0)
+        new_owner_id = user_id_name_map[new_owner_name]
+        new_status = st.selectbox("Change Status", ["Pending", "In Progress", "Completed"], index=["Pending", "In Progress", "Completed"].index(selected_task["status"]))
+        update_submit = st.form_submit_button("Update Task")
+        if update_submit:
+            if update_task(selected_task["id"], new_owner_id, new_status):
+                st.success("✅ Task updated!")
+            else:
+                st.error("❌ Update failed.")
+
+    if st.button("❌ Delete Task"):
+        if delete_task(selected_task["id"]):
+            st.success("🗑️ Task deleted.")
+        else:
+            st.error("❌ Failed to delete task.")
+else:
+    st.info("No tasks found.")
