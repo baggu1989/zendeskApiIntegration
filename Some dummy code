@@ -1,0 +1,72 @@
+import streamlit as st
+import requests
+
+API_BASE_URL = "http://localhost:8000"  # Change this if deployed elsewhere
+
+# Fetch tasks from API
+def fetch_tasks():
+    response = requests.get(f"{API_BASE_URL}/tasks")
+    return response.json() if response.status_code == 200 else []
+
+# Create task via API
+def create_task(title, owner, status):
+    payload = {"title": title, "owner": owner, "status": status}
+    response = requests.post(f"{API_BASE_URL}/tasks", json=payload)
+    return response.ok
+
+# Update task via API
+def update_task(task_id, owner, status):
+    payload = {"owner": owner, "status": status}
+    response = requests.put(f"{API_BASE_URL}/tasks/{task_id}", json=payload)
+    return response.ok
+
+# Delete task via API
+def delete_task(task_id):
+    response = requests.delete(f"{API_BASE_URL}/tasks/{task_id}")
+    return response.ok
+
+# UI starts
+st.title("🧠 FastAPI Task Manager (Streamlit UI)")
+
+# Section: Create Task
+st.subheader("➕ Create Task")
+with st.form("create_task"):
+    title = st.text_input("Title")
+    owner = st.text_input("Owner")
+    status = st.selectbox("Status", ["Pending", "In Progress", "Completed"])
+    submit = st.form_submit_button("Create Task")
+    if submit:
+        if create_task(title, owner, status):
+            st.success("Task created successfully!")
+        else:
+            st.error("Failed to create task")
+
+# Section: Manage Tasks
+st.subheader("🛠️ Manage Tasks")
+
+tasks = fetch_tasks()
+if tasks:
+    task_options = {f"{t['id']}: {t['title']}": t for t in tasks}
+    selected_label = st.selectbox("Select Task", list(task_options.keys()))
+    selected_task = task_options[selected_label]
+
+    st.write(f"**Current Owner**: {selected_task['owner']}")
+    st.write(f"**Current Status**: {selected_task['status']}")
+
+    with st.form("update_task"):
+        new_owner = st.text_input("Update Owner", value=selected_task["owner"])
+        new_status = st.selectbox("Update Status", ["Pending", "In Progress", "Completed"], index=["Pending", "In Progress", "Completed"].index(selected_task["status"]))
+        update = st.form_submit_button("Update Task")
+        if update:
+            if update_task(selected_task["id"], new_owner, new_status):
+                st.success("Task updated.")
+            else:
+                st.error("Update failed.")
+
+    if st.button("❌ Delete Task"):
+        if delete_task(selected_task["id"]):
+            st.success("Task deleted.")
+        else:
+            st.error("Failed to delete task")
+else:
+    st.info("No tasks found.")
